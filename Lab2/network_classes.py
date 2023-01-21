@@ -43,6 +43,9 @@ class Signal_information:
         except ValueError:
             print("The label given to the update_path method was not in the path.")
 
+    def get_snr(self) -> float:
+        return 10*log10(self.__signal_power/self.__noise_power)
+
     # class getters
 
     def get_signal_power(self) -> float:
@@ -90,9 +93,9 @@ class Signal_information:
 
     def __str__(self):
         message = "Signal Information:\nSignal power: " + \
-            "%.2f" % self.__signal_power + " W\nNoise power: " + \
-            "%.2f" % self.__noise_power + " W\nLatency: " + \
-            "%.2f" % self.__latency + " s\nPath: " + \
+            "%.3f" % self.__signal_power + " W\nNoise power: " + \
+            "%.3f" % self.__noise_power + " W\nLatency: " + \
+            "%.3f" % self.__latency + " s\nPath: " + \
             ", ".join(self.__path) + "\n"
         return message
 
@@ -118,12 +121,13 @@ class Node:
     def propagate(self, signal: Signal_information):
         # update signal path
         signal_path = signal.get_path()
+        print(signal_path)
         if len(signal_path) > 1:
             successive_line = self.__label + signal_path[1]
             signal.update_path(self.__label)
             self.__successive[successive_line].propagate(signal)
         else:
-            return signal
+            return
 
     # class getters
 
@@ -172,7 +176,7 @@ class Node:
 
     def __str__(self):
         message = "Node with label: " + self.__label + "\nPosition: (" + \
-            "%.2f" % self.__position[0] + ", " + "%.2f" % self.__position[1] + ")\nConnected nodes: " + \
+            "%.3f" % self.__position[0] + ", " + "%.3f" % self.__position[1] + ")\nConnected nodes: " + \
             ", ".join(self.__connected_nodes) + "\n"
         if self.__successive:
             successive_labels = self.__successive.keys()
@@ -245,9 +249,80 @@ class Line:
     def __str__(self):
         successive_nodes = self.__successive.keys()
         message = "Line with label: " + self.__label + "\nLength: " + \
-            "%.2f" % self.__length + " m\n"
+            "%.3f" % self.__length + " m\n"
         if self.__successive:
             message += "Successive nodes: " + ", ".join(successive_nodes) + "\n"
+        return message
+
+
+class Connection:
+    def __init__(self, inout: list[str, str], signal_power=1e-3):
+        self.__input:   str = inout[0]
+        self.__output:  str = inout[1]
+        self.__signal_power: float = signal_power
+        self.__latency: float = 0.0
+        self.__snr: float = 0.0
+
+    # class methods
+
+    # class getters
+
+    def get_input(self) -> str:
+        return self.__input
+
+    def get_output(self) -> str:
+        return self.__output
+
+    def get_signal_power(self) -> float:
+        return self.__signal_power
+
+    def get_latency(self) -> float:
+        return self.__latency
+
+    def get_snr(self) -> float:
+        return self.__snr
+
+    # class setters
+
+    def set_input(self, new_input):
+        try:
+            self.__input = str(new_input)
+        except ValueError:
+            print("The value given to the set_input method was not a string.")
+
+    def set_output(self, new_output):
+        try:
+            self.__output = str(new_output)
+        except ValueError:
+            print("The value given to the set_output method was not a string.")
+
+    def set_signal_power(self, new_signal_power):
+        try:
+            self.__signal_power = float(new_signal_power)
+        except ValueError:
+            print("The value given to the set_signal_power method was not a float number.")
+
+    def set_latency(self, new_latency):
+        try:
+            self.__latency = float(new_latency)
+        except ValueError:
+            print("The value given to the set_latency method was not a float number.")
+
+    def set_snr(self, new_snr):
+        try:
+            self.__snr = float(new_snr)
+        except ValueError:
+            print("The value given to the set_snr method was not a float number.")
+
+    # class overloads
+
+    def __repr__(self):
+        return "Connection object"
+
+    def __str__(self):
+        message = "Connection between: " + self.__input + " -> " + self.__output + \
+                    "\nSignal power: " + "%.3f" % self.__signal_power + " W\n" + \
+                    "Latency: " + "%.3f" % self.__latency + " s\nSNR: " + "%.3f" % self.__snr + " dB\n"
         return message
 
 
@@ -259,7 +334,7 @@ class Network:
         else:
             self.__nodes, self.__lines = self.parse_json_to_elements(file_path)
         self.__all_paths: list[list[str]] = []
-        self.__dataframe: pd.DataFrame = pd.DataFrame()
+        self.__weighted_paths: pd.DataFrame = pd.DataFrame()
 
     @staticmethod
     def parse_json_to_elements(json_path: str) -> tuple[dict[str: Node], dict[str: Line]]:
@@ -316,9 +391,9 @@ class Network:
     def find_paths(self, starting_node: str, ending_node: str) -> list[list[str]]:
         return [path for path in self.__all_paths if path[0] == starting_node and path[-1] == ending_node]
 
-    def propagate(self, signal: Signal_information) -> Signal_information:
+    def propagate(self, signal: Signal_information):
         starting_node = signal.get_path()[0]
-        return self.__nodes[starting_node].propagate(signal)
+        self.__nodes[starting_node].propagate(signal)
 
     def draw(self):
         # draw nodes
@@ -352,8 +427,39 @@ class Network:
                         snr
                     ]
                 )
-        self.__dataframe = pd.DataFrame(paths_for_pd, columns=["Path", "Latency [s]", "Noise Power [W]", "SNR [dB]"])
-        print(self.__dataframe)
+        self.__weighted_paths = pd.DataFrame(
+            paths_for_pd,
+            columns=["Path", "Latency [s]", "Noise Power [W]", "SNR [dB]"]
+        )
+
+    def find_best_snr(self, input_node: str, output_node: str) -> str:
+        paths_subset = self.__weighted_paths[
+            (self.__weighted_paths["Path"].str.startswith(input_node)) &
+            (self.__weighted_paths["Path"].str.endswith(output_node))
+        ]
+        max_index = paths_subset["SNR [dB]"].idxmax(axis=0)
+        return str(self.__weighted_paths.iloc[max_index]["Path"])
+
+    def find_best_latency(self, input_node: str, output_node: str) -> str:
+        paths_subset = self.__weighted_paths[
+            (self.__weighted_paths["Path"].str.startswith(input_node)) &
+            (self.__weighted_paths["Path"].str.endswith(output_node))
+        ]
+        min_index = paths_subset["Latency [s]"].idxmin(axis=0)
+        return str(self.__weighted_paths.iloc[min_index]["Path"])
+
+    def stream(self, connection_list: list[Connection], best="latency"):
+        for connection in connection_list:
+            if best == "latency":
+                path = self.find_best_latency(connection.get_input(), connection.get_output()).split("->")
+            elif best == "snr":
+                path = self.find_best_snr(connection.get_input(), connection.get_output()).split("->")
+            else:
+                return
+            test_signal = Signal_information(signal_power_value=connection.get_signal_power(), given_path=path)
+            self.propagate(test_signal)
+            connection.set_latency(test_signal.get_latency())
+            connection.set_snr(test_signal.get_snr())
 
     # class getters
 
@@ -365,6 +471,9 @@ class Network:
 
     def get_all_paths(self) -> list[list[str]]:
         return self.__all_paths
+
+    def get_weighted_paths(self) -> pd.DataFrame:
+        return self.__weighted_paths
 
     # class setters
 
@@ -386,6 +495,12 @@ class Network:
         except ValueError:
             print("The value given to the set_all_paths method was not a valid list.")
 
+    def set_weighted_paths(self, new_weighted_paths):
+        try:
+            self.__weighted_paths = pd.DataFrame(new_weighted_paths)
+        except ValueError:
+            print("The value given to the set_weighted_paths method could not be used to create a dataframe.")
+
     # class overloads
 
     def __repr__(self):
@@ -397,4 +512,5 @@ class Network:
             message += str(node)
         for line in self.__lines.values():
             message += str(line)
+        message += "\nWeighted paths:\n" + str(self.__weighted_paths)
         return message

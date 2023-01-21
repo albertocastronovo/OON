@@ -1,0 +1,8 @@
+full total free channels: 3500
+not full total free channels: 1730
+total connections: 100
+total failures: 0
+total connections: 100
+total failures: 2
+full total free channels: 192
+not full total free channels: 110
