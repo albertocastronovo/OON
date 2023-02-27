@@ -2,12 +2,11 @@ from json import load
 from math import sqrt, log10
 import matplotlib.pyplot as plt
 import pandas as pd
+from textwrap import dedent
 
 
 #   Signal_information class
-#   latency: total time delay due to the signal propagation
-#       through any network element along the path.
-#
+
 class Signal_information:
     def __init__(self, signal_power_value=1e-3, given_path=None):
         self.__signal_power:   float = signal_power_value
@@ -92,11 +91,13 @@ class Signal_information:
         return "Signal_information object"
 
     def __str__(self):
-        message = "Signal Information:\nSignal power: " + \
-            "%.3f" % self.__signal_power + " W\nNoise power: " + \
-            "%.3f" % self.__noise_power + " W\nLatency: " + \
-            "%.3f" % self.__latency + " s\nPath: " + \
-            ", ".join(self.__path) + "\n"
+        message = dedent(f"""\
+                            Signal Information
+                            Signal power:   {self.__signal_power :.3f} W
+                            Noise power:    {self.__noise_power :.3f} W
+                            Latency:        {self.__latency :.3f} s
+                            Path:           {', '.join(self.__path)}"""
+                         )
         return message
 
 
@@ -174,12 +175,12 @@ class Node:
         return "Node object"
 
     def __str__(self):
-        message = "Node with label: " + self.__label + "\nPosition: (" + \
-            "%.3f" % self.__position[0] + ", " + "%.3f" % self.__position[1] + ")\nConnected nodes: " + \
-            ", ".join(self.__connected_nodes) + "\n"
-        if self.__successive:
-            successive_labels = self.__successive.keys()
-            message += "Successive lines: " + ", ".join(successive_labels) + "\n"
+        message = dedent(f"""\
+                        Node with label:    {self.__label}
+                        Position:           {" m, ".join(map(str, self.__position))} m
+                        Connected nodes:    {", ".join(self.__connected_nodes)}
+                        Successive:         {", ".join(self.__successive.keys())}"""
+                         )
         return message
 
 
@@ -256,11 +257,11 @@ class Line:
         return "Line object"
 
     def __str__(self):
-        successive_nodes = self.__successive.keys()
-        message = "Line with label: " + self.__label + "\nLength: " + \
-            "%.3f" % self.__length + " m\nState: " + str(self.__state) + "\n"
-        if self.__successive:
-            message += "Successive nodes: " + ", ".join(successive_nodes) + "\n"
+        message = dedent(f"""\
+                        Line with label:    {self.__label}
+                        Length:             {self.__length :.3f} m
+                        Successive:         {", ".join(self.__successive.keys())}"""
+                         )
         return message
 
 
@@ -332,9 +333,12 @@ class Connection:
         return "Connection object"
 
     def __str__(self):
-        message = "Connection between: " + self.__input + " -> " + self.__output + \
-                    "\nSignal power: " + "%.3f" % self.__signal_power + " W\n" + \
-                    "Latency: " + "%.3f" % self.__latency + " s\nSNR: " + "%.3f" % self.__snr + " dB\n"
+        message = dedent(f"""\
+                        Connection between: {self.__input} -> {self.__output}
+                        Signal power:       {self.__signal_power :.3f} W
+                        Latency:            {self.__latency :.3f} s
+                        SNR:                {self.__snr :.3f} dB"""
+                         )
         return message
 
 
@@ -496,24 +500,28 @@ class Network:
     def occupy_all_subpaths(self, path: str):
         self.__weighted_paths.loc[self.__weighted_paths["Path"].str.contains(path), "Free"] = 0
 
-    def stream(self, connection_list: list[Connection], best="latency"):
+    def stream(self, connection_list: list[Connection], best="latency") -> float:
+        all_connections = len(connection_list)
+        success = 0
         for connection in connection_list:
             if best == "latency":
                 path = self.find_best_latency(connection.get_input(), connection.get_output()).split("->")
             elif best == "snr":
                 path = self.find_best_snr(connection.get_input(), connection.get_output()).split("->")
             else:
-                return
+                return -1
             if path[0] == "empty":
                 connection.set_latency(-1)
                 connection.set_snr(0.0)
             else:
+                success += 1
                 test_signal = Signal_information(signal_power_value=connection.get_signal_power(), given_path=path)
                 self.propagate(test_signal)
                 self.occupy_all_subpaths("->".join(path))
                 self.occupy_lines_from_path(path)
                 connection.set_latency(test_signal.get_latency())
                 connection.set_snr(test_signal.get_snr())
+        return float(success) / float(all_connections)
 
     # class getters
 
@@ -561,10 +569,9 @@ class Network:
         return "Network object"
 
     def __str__(self):
-        message = "Network with " + str(len(self.__nodes)) + " nodes and " + str(len(self.__lines)) + " lines\n"
+        message = f"Network with {len(self.__nodes)} nodes and {len(self.__lines)} lines\n"
         for node in self.__nodes.values():
             message += str(node)
         for line in self.__lines.values():
             message += str(line)
-        message += "\nWeighted paths:\n" + str(self.__weighted_paths)
         return message

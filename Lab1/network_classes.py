@@ -2,18 +2,17 @@ from json import load
 from math import sqrt, log10
 import matplotlib.pyplot as plt
 import pandas as pd
+from textwrap import dedent
 
 
-#   Signal_information class
-#   latency: total time delay due to the signal propagation
-#       through any network element along the path.
-#
+#   1.  Signal_information class
+
 class Signal_information:
     def __init__(self, signal_power_value=1e-3, given_path=None):
-        self.__signal_power:   float = signal_power_value
-        self.__noise_power:    float = 0.0
-        self.__latency:        float = 0.0
-        self.__path:           list[str] = []
+        self.__signal_power: float = signal_power_value
+        self.__noise_power: float = 0.0
+        self.__latency: float = 0.0
+        self.__path: list[str] = []
         if given_path is not None:
             self.__path = given_path
 
@@ -89,23 +88,25 @@ class Signal_information:
         return "Signal_information object"
 
     def __str__(self):
-        message = "Signal Information:\nSignal power: " + \
-            "%.2f" % self.__signal_power + " W\nNoise power: " + \
-            "%.2f" % self.__noise_power + " W\nLatency: " + \
-            "%.2f" % self.__latency + " s\nPath: " + \
-            ", ".join(self.__path) + "\n"
+        message = dedent(f"""\
+            Signal Information
+            Signal power:   {self.__signal_power :.2f} W
+            Noise power:    {self.__noise_power :.2f} W
+            Latency:        {self.__latency :.2f} s
+            Path:           {', '.join(self.__path)}"""
+                         )
         return message
 
 
-# Node class
-#
+#   2.  Node class
+
 class Node:
     def __init__(self, node_dictionary=None):
         try:
-            self.__label:   str = node_dictionary["label"]
+            self.__label: str = node_dictionary["label"]
             self.__position: tuple[float, float] = tuple(node_dictionary["position"])
             self.__connected_nodes: list[str] = node_dictionary["connected_nodes"]
-        except KeyError:
+        except (KeyError, TypeError):
             print("Invalid node dictionary.")
             self.__label = "default"
             self.__position = (0.0, 0.0)
@@ -113,10 +114,8 @@ class Node:
         self.__successive: dict[str: Line] = {}
 
     # class methods
-    # propagate: update the signal modifying its path attribute and
-    #   call the successive element propagate method.
+
     def propagate(self, signal: Signal_information):
-        # update signal path
         signal_path = signal.get_path()
         if len(signal_path) > 1:
             successive_line = self.__label + signal_path[1]
@@ -171,16 +170,17 @@ class Node:
         return "Node object"
 
     def __str__(self):
-        message = "Node with label: " + self.__label + "\nPosition: (" + \
-            "%.2f" % self.__position[0] + ", " + "%.2f" % self.__position[1] + ")\nConnected nodes: " + \
-            ", ".join(self.__connected_nodes) + "\n"
-        if self.__successive:
-            successive_labels = self.__successive.keys()
-            message += "Successive lines: " + ", ".join(successive_labels) + "\n"
+        message = dedent(f"""\
+                    Node with label:    {self.__label}
+                    Position:           {" m, ".join(map(str, self.__position))} m
+                    Connected nodes:    {", ".join(self.__connected_nodes)}
+                    Successive:         {", ".join(self.__successive.keys())}"""
+                         )
         return message
 
 
-# Line class
+#   3.  Line class
+
 class Line:
     def __init__(self, label: str = "default", length: float = 0.0):
         self.__label: str = label
@@ -188,21 +188,18 @@ class Line:
         self.__successive: dict[str: Node] = {}
 
     # class methods
+
     def latency_generation(self, signal: Signal_information):
-        added_latency = self.__length/2e08
+        added_latency = self.__length / 2e08
         signal.update_latency(added_latency)
 
     def noise_generation(self, signal: Signal_information):
         generated_noise = 1e-9 * signal.get_signal_power() * self.__length
         signal.update_noise_power(generated_noise)
 
-    # propagate: update the signal information modifying its noise power
-    #   and its latency and call the successive element propagate method.
     def propagate(self, signal: Signal_information):
-        # update signal information
         self.noise_generation(signal)
         self.latency_generation(signal)
-        # call next propagate method
         successive_node = self.__label[1]
         self.__successive[successive_node].propagate(signal)
 
@@ -243,13 +240,15 @@ class Line:
         return "Line object"
 
     def __str__(self):
-        successive_nodes = self.__successive.keys()
-        message = "Line with label: " + self.__label + "\nLength: " + \
-            "%.2f" % self.__length + " m\n"
-        if self.__successive:
-            message += "Successive nodes: " + ", ".join(successive_nodes) + "\n"
+        message = dedent(f"""\
+                            Line with label:    {self.__label}
+                            Length:             {self.__length :.2f} m
+                            Successive:         {", ".join(self.__successive.keys())}"""
+                         )
         return message
 
+
+#   4.  Network class
 
 class Network:
     def __init__(self, file_path: str = None):
@@ -260,6 +259,8 @@ class Network:
             self.__nodes, self.__lines = self.parse_json_to_elements(file_path)
         self.__all_paths: list[list[str]] = []
         self.__dataframe: pd.DataFrame = pd.DataFrame()
+
+    # class methods
 
     @staticmethod
     def parse_json_to_elements(json_path: str) -> tuple[dict[str: Node], dict[str: Line]]:
@@ -273,24 +274,22 @@ class Network:
                 for node in json_data[key]["connected_nodes"]:
                     line_label = key + node
                     line_length = sqrt(
-                        (json_data[key]["position"][0] - json_data[node]["position"][0])**2 +
-                        (json_data[key]["position"][1] - json_data[node]["position"][1])**2
+                        (json_data[key]["position"][0] - json_data[node]["position"][0]) ** 2 +
+                        (json_data[key]["position"][1] - json_data[node]["position"][1]) ** 2
                     )
                     output_lines[line_label] = Line(line_label, line_length)
 
         return output_nodes, output_lines
 
-    # class methods
-
     def connect(self):
-        for node in self.__nodes.values():  # set successive attribute of each node
+        for node in self.__nodes.values():
             node.set_successive(
                 {
                     node.get_label() + connected_node: self.__lines[node.get_label() + connected_node]
                     for connected_node in node.get_connected_nodes()
                 }
             )
-        for line in self.__lines.values():  # set successive attribute of each line
+        for line in self.__lines.values():
             line.set_successive(
                 {
                     label_char: self.__nodes[label_char]
@@ -321,39 +320,37 @@ class Network:
         return self.__nodes[starting_node].propagate(signal)
 
     def draw(self):
-        # draw nodes
-        for label in self.__nodes.keys():
-            node_pos = self.__nodes[label].get_position()
+        for node in self.__nodes.keys():
+            node_pos = self.__nodes[node].get_position()
             plt.scatter(*node_pos, s=500, marker='o', color='r', linewidths=0)
-            plt.annotate(label, xy=node_pos, xytext=(-3, -6), textcoords="offset pixels")
-        # draw lines
+            plt.annotate(node, xy=node_pos, xytext=(-3, -6), textcoords="offset pixels")
 
         for line in self.__lines.keys():
             node_pos = [self.__nodes[line[0]].get_position(), self.__nodes[line[1]].get_position()]
             plt.plot(*zip(*node_pos), color='b', zorder=-1)
 
-        # plot parameters
         plt.axis("off")
         plt.title("Network")
         plt.show()
+
+    #   5. Pandas Dataframe
 
     def network_analysis(self):
         paths_for_pd = []
         for path in self.__all_paths:
             test_signal = Signal_information(signal_power_value=1e-3)
             test_signal.set_path(path)
-            self.propagate(test_signal)     # test signal now has updated latency and noise power
-            snr = 10*log10(test_signal.get_signal_power()/test_signal.get_noise_power())
+            self.propagate(test_signal)
+            snr = 10 * log10(test_signal.get_signal_power() / test_signal.get_noise_power())
             paths_for_pd.append(
-                    [
-                        "->".join(path),
-                        test_signal.get_latency(),
-                        test_signal.get_noise_power(),
-                        snr
-                    ]
-                )
+                [
+                    "->".join(path),
+                    test_signal.get_latency(),
+                    test_signal.get_noise_power(),
+                    snr
+                ]
+            )
         self.__dataframe = pd.DataFrame(paths_for_pd, columns=["Path", "Latency [s]", "Noise Power [W]", "SNR [dB]"])
-        print(self.__dataframe)
 
     # class getters
 
@@ -365,6 +362,9 @@ class Network:
 
     def get_all_paths(self) -> list[list[str]]:
         return self.__all_paths
+
+    def get_dataframe(self) -> pd.DataFrame:
+        return self.__dataframe
 
     # class setters
 
@@ -386,13 +386,19 @@ class Network:
         except ValueError:
             print("The value given to the set_all_paths method was not a valid list.")
 
+    def set_dataframe(self, new_dataframe):
+        try:
+            self.__dataframe = pd.DataFrame(new_dataframe)
+        except ValueError:
+            print("The value given to the set_dataframe method was not a valid dataframe.")
+
     # class overloads
 
     def __repr__(self):
         return "Network object"
 
     def __str__(self):
-        message = "Network with " + str(len(self.__nodes)) + " nodes and " + str(len(self.__lines)) + " lines\n"
+        message = f"Network with {len(self.__nodes)} nodes and {len(self.__lines)} lines\n"
         for node in self.__nodes.values():
             message += str(node)
         for line in self.__lines.values():

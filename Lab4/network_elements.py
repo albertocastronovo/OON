@@ -1,4 +1,5 @@
 from math import log10
+from textwrap import dedent
 
 
 class Signal_information:
@@ -85,11 +86,13 @@ class Signal_information:
         return "Signal_information object"
 
     def __str__(self):
-        message = "Signal Information:\nSignal power: " + \
-            "%.3f" % self.__signal_power + " W\nNoise power: " + \
-            "%.3f" % self.__noise_power + " W\nLatency: " + \
-            "%.3f" % self.__latency + " s\nPath: " + \
-            ", ".join(self.__path) + "\n"
+        message = dedent(f"""\
+                                Signal Information
+                                Signal power:   {self.__signal_power :.3f} W
+                                Noise power:    {self.__noise_power :.3f} W
+                                Latency:        {self.__latency :.3f} s
+                                Path:           {', '.join(self.__path)}"""
+                         )
         return message
 
 
@@ -112,7 +115,7 @@ class Lightpath(Signal_information):
 
     def __str__(self):
         message = super(Lightpath, self).__str__()
-        message += "Channel: " + str(self.__channel) + "\n"
+        message += f"Channel: {self.__channel}"
         return message
 
 
@@ -124,7 +127,7 @@ class Node:
             self.__label:   str = node_dictionary["label"]
             self.__position: tuple[float, float] = tuple(node_dictionary["position"])
             self.__connected_nodes: list[str] = node_dictionary["connected_nodes"]
-            self.__switching_matrix: dict[str: dict[str: list[int]]] = None
+            self.__switching_matrix: dict[str: dict[str: list[int]]] = None     # 1. switching matrix
         except KeyError:
             print("Invalid node dictionary.")
             self.__label = "default"
@@ -206,19 +209,18 @@ class Node:
         except ValueError:
             print("The value given to the set_switching_matrix method was not a valid dictionary.")
 
-
     # class overloads
 
     def __repr__(self):
         return "Node object"
 
     def __str__(self):
-        message = "Node with label: " + self.__label + "\nPosition: (" + \
-            "%.3f" % self.__position[0] + ", " + "%.3f" % self.__position[1] + ")\nConnected nodes: " + \
-            ", ".join(self.__connected_nodes) + "\n"
-        if self.__successive:
-            successive_labels = self.__successive.keys()
-            message += "Successive lines: " + ", ".join(successive_labels) + "\n"
+        message = dedent(f"""\
+                                Node with label:    {self.__label}
+                                Position:           {" m, ".join(map(str, self.__position))} m
+                                Connected nodes:    {", ".join(self.__connected_nodes)}
+                                Successive:         {", ".join(self.__successive.keys())}"""
+                         )
         return message
 
 
@@ -305,11 +307,11 @@ class Line:
         return "Line object"
 
     def __str__(self):
-        successive_nodes = self.__successive.keys()
-        message = "Line with label: " + self.__label + "\nLength: " + \
-            "%.3f" % self.__length + " m\nState: " + ", ".join(str(self.__state)) + "\n"
-        if self.__successive:
-            message += "Successive nodes: " + ", ".join(successive_nodes) + "\n"
+        message = dedent(f"""\
+                                Line with label:    {self.__label}
+                                Length:             {self.__length :.3f} m
+                                Successive:         {", ".join(self.__successive.keys())}"""
+                         )
         return message
 
 
@@ -381,7 +383,14 @@ class Connection:
         return "Connection object"
 
     def __str__(self):
-        message = "Connection between: " + self.__input + " -> " + self.__output + \
-                    "\nSignal power: " + "%.3f" % self.__signal_power + " W\n" + \
-                    "Latency: " + "%.3f" % self.__latency + " s\nSNR: " + "%.3f" % self.__snr + " dB\n"
+        if self.__latency is None:
+            lat = "None"
+        else:
+            lat = ".3f".format(self.__latency)
+        message = dedent(f"""\
+                                Connection between: {self.__input} -> {self.__output}
+                                Signal power:       {self.__signal_power :.3f} W
+                                Latency:            {lat} s
+                                SNR:                {self.__snr :.3f} dB"""
+                         )
         return message

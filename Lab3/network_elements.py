@@ -1,10 +1,9 @@
 from math import log10
+from textwrap import dedent
 
 
 #   Signal_information class
-#   latency: total time delay due to the signal propagation
-#       through any network element along the path.
-#
+
 class Signal_information:
     def __init__(self, signal_power_value=1e-3, given_path=None):
         self.__signal_power:   float = signal_power_value
@@ -89,13 +88,17 @@ class Signal_information:
         return "Signal_information object"
 
     def __str__(self):
-        message = "Signal Information:\nSignal power: " + \
-            "%.3f" % self.__signal_power + " W\nNoise power: " + \
-            "%.3f" % self.__noise_power + " W\nLatency: " + \
-            "%.3f" % self.__latency + " s\nPath: " + \
-            ", ".join(self.__path) + "\n"
+        message = dedent(f"""\
+                        Signal Information
+                        Signal power:   {self.__signal_power :.3f} W
+                        Noise power:    {self.__noise_power :.3f} W
+                        Latency:        {self.__latency :.3f} s
+                        Path:           {', '.join(self.__path)}"""
+                         )
         return message
 
+
+#   1. Lightpath class
 
 class Lightpath(Signal_information):
     def __init__(self, signal_power_value=1e-3, given_path=None, selected_channel=1):
@@ -116,12 +119,12 @@ class Lightpath(Signal_information):
 
     def __str__(self):
         message = super(Lightpath, self).__str__()
-        message += "Channel: " + str(self.__channel) + "\n"
+        message += f"Channel: {self.__channel}"
         return message
 
 
 # Node class
-#
+
 class Node:
     def __init__(self, node_dictionary=None):
         try:
@@ -203,16 +206,17 @@ class Node:
         return "Node object"
 
     def __str__(self):
-        message = "Node with label: " + self.__label + "\nPosition: (" + \
-            "%.3f" % self.__position[0] + ", " + "%.3f" % self.__position[1] + ")\nConnected nodes: " + \
-            ", ".join(self.__connected_nodes) + "\n"
-        if self.__successive:
-            successive_labels = self.__successive.keys()
-            message += "Successive lines: " + ", ".join(successive_labels) + "\n"
+        message = dedent(f"""\
+                        Node with label:    {self.__label}
+                        Position:           {" m, ".join(map(str, self.__position))} m
+                        Connected nodes:    {", ".join(self.__connected_nodes)}
+                        Successive:         {", ".join(self.__successive.keys())}"""
+                         )
         return message
 
 
 # Line class
+
 class Line:
     def __init__(self, label: str = "default", length: float = 0.0):
         self.__label: str = label
@@ -240,7 +244,7 @@ class Line:
         successive_node = self.__label[1]
         self.__successive[successive_node].propagate(signal)
 
-    def probe(self, signal: Lightpath):
+    def probe(self, signal: Lightpath):     # 3. probe method: same as propagate, no occupation
         self.noise_generation(signal)
         self.latency_generation(signal)
         successive_node = self.__label[1]
@@ -292,11 +296,11 @@ class Line:
         return "Line object"
 
     def __str__(self):
-        successive_nodes = self.__successive.keys()
-        message = "Line with label: " + self.__label + "\nLength: " + \
-            "%.3f" % self.__length + " m\nState: " + ", ".join(str(self.__state)) + "\n"
-        if self.__successive:
-            message += "Successive nodes: " + ", ".join(successive_nodes) + "\n"
+        message = dedent(f"""\
+                        Line with label:    {self.__label}
+                        Length:             {self.__length :.3f} m
+                        Successive:         {", ".join(self.__successive.keys())}"""
+                         )
         return message
 
 
@@ -367,8 +371,15 @@ class Connection:
     def __repr__(self):
         return "Connection object"
 
-    def __str__(self):
-        message = "Connection between: " + self.__input + " -> " + self.__output + \
-                    "\nSignal power: " + "%.3f" % self.__signal_power + " W\n" + \
-                    "Latency: " + "%.3f" % self.__latency + " s\nSNR: " + "%.3f" % self.__snr + " dB\n"
+    def __str__(self) -> str:
+        if self.__latency is None:
+            lat = "None"
+        else:
+            lat = ".3f".format(self.__latency)
+        message = dedent(f"""\
+                        Connection between: {self.__input} -> {self.__output}
+                        Signal power:       {self.__signal_power :.3f} W
+                        Latency:            {lat} s
+                        SNR:                {self.__snr :.3f} dB"""
+                         )
         return message

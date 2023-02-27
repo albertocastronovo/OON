@@ -1,10 +1,9 @@
 from json import load
-from math import sqrt, log10, log2
+from math import sqrt, log10
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from network_elements import Node, Line, Connection, Lightpath
-from scipy.special import erfcinv
 
 
 class Network:
@@ -18,7 +17,6 @@ class Network:
         self.__weighted_paths: pd.DataFrame = pd.DataFrame()
         self.__route_space: pd.DataFrame = pd.DataFrame() # path vs channel availability
         self.__channels: int = channels
-        self.__capacity: dict[str: int] = {}
 
     @staticmethod
     def parse_json_to_elements(json_path: str) -> tuple[dict[str: Node], dict[str: Line]]:
@@ -36,7 +34,6 @@ class Network:
                         (json_data[key]["position"][1] - json_data[node]["position"][1])**2
                     )
                     output_lines[line_label] = Line(line_label, line_length)
-                    # print("Line " + line_label + " has length " + str(line_length) + " m")
 
         return output_nodes, output_lines
 
@@ -48,17 +45,7 @@ class Network:
 
     def connect(self):
         for node in self.__nodes.values():  # set successive attribute of each node
-            """
-            node.set_switching_matrix(
-                {
-                    n: {
-                        m: np.array([
-                            int(n != m) for i in range(self.__channels)
-                        ]) for m in self.__nodes.keys()
-                    } for n in self.__nodes.keys()
-                }
-            )
-            """
+
             node.set_successive(
                 {
                     node.get_label() + connected_node: self.__lines[node.get_label() + connected_node]
@@ -73,6 +60,7 @@ class Network:
                 }
             )
             line.set_state([1 for i in range(self.__channels)])
+
         self.__all_paths = list(self.find_all_paths())
 
     def find_all_paths(self, path: list = None, min_length: int = 2) -> list[list[str]]:
@@ -140,7 +128,7 @@ class Network:
                     ]
                 )
             paths_for_rs.append(
-                ["->".join(path)] + [str(self.__channels)] + ["1" for i in range(self.__channels)]
+                ["->".join(path)] + ["1" for _ in range(self.__channels+1)]
             )
         self.__weighted_paths = pd.DataFrame(
             paths_for_wp,
@@ -148,18 +136,17 @@ class Network:
         )
         self.__route_space = pd.DataFrame(
             paths_for_rs,
-            columns=["Path", "CH_CNT"] + ["CH_" + str(i+1) for i in range(self.__channels)]
+            columns=["Path", "CH_ANY"] + ["CH_" + str(i+1) for i in range(self.__channels)]
         )
         for col in self.__route_space.columns:
             if col != "Path":
                 self.__route_space[col].values[:] = 1
-        self.routing_space_update()
 
     def find_best_snr(self, input_node: str, output_node: str) -> str:
         paths_subset = self.__route_space.index[
             (self.__route_space["Path"].str.startswith(input_node)) &
             (self.__route_space["Path"].str.endswith(output_node)) &
-            (self.__route_space["CH_CNT"] > 0)
+            (self.__route_space["CH_ANY"] == 1)
         ].tolist()
         if len(paths_subset) == 0:
             return "empty"
@@ -170,7 +157,7 @@ class Network:
         paths_subset = self.__route_space.index[
             (self.__route_space["Path"].str.startswith(input_node)) &
             (self.__route_space["Path"].str.endswith(output_node)) &
-            (self.__route_space["CH_CNT"] > 0)
+            (self.__route_space["CH_ANY"] == 1)
         ].tolist()
         if len(paths_subset) == 0:
             return "empty"
@@ -186,76 +173,55 @@ class Network:
     def set_all_paths_state(self, new_state: int, channel: int):
         self.__weighted_paths["CH_" + str(channel)] = new_state
 
+    def occupy_lines_from_path(self, path: list[str]):
+        lines = self.lines_in_path(path)
+        for line in lines:
+            self.__lines[line].set_state(0)
+
+    def occupy_all_subpaths(self, path: str, channel: int):
+        self.__route_space.loc[self.__route_space["Path"].str.contains(path), "CH_" + str(channel)] = 0
+        self.route_space_update_any()
+        # if channel == self.__channels:
+        # self.__route_space.loc[self.__route_space["Path"].str.contains(path), "CH_ANY"] = 0
+
+    def route_space_update_any(self):
+        ch_columns = [c for c in list(self.__route_space.columns) if c != "CH_ANY" and c != "Path"]
+        self.__route_space["CH_ANY"] = self.__route_space[ch_columns].any(axis=1).astype(int)
+
+    def reset_route_space(self):
+        self.__route_space.replace(to_replace=0, value=1, inplace=True)
+
     def get_first_free_channel(self, path: str) -> int:
         for i in range(1, self.__channels + 1):
             if self.__route_space.loc[self.__route_space["Path"] == path, "CH_" + str(i)].tolist()[0]:
                 return i
         return -1
 
-    def stream(self, connection_list: list[Connection], best="latency"):
-        total_count = 0
-        fail_count = 0
-        success_count = 0
-
+    def stream(self, connection_list: list[Connection], best="latency") -> float:
+        all_connections = len(connection_list)
+        success = 0
         for connection in connection_list:
-            total_count += 1
             if best == "latency":
                 path = self.find_best_latency(connection.get_input(), connection.get_output()).split("->")
             elif best == "snr":
                 path = self.find_best_snr(connection.get_input(), connection.get_output()).split("->")
             else:
-                return
-            try:
-                strategy = self.__nodes[path[0]].get_transceiver()
-            except KeyError:
-                strategy = "fixed_rate"
-            bit_rate = self.calculate_bit_rate(path="->".join(path), strategy=strategy)
-            # print("connection #" + str(total_count) + " bit rate: " + str(bit_rate))
-
-            if path[0] == "empty" or bit_rate is None or bit_rate < 0.1:
-                fail_count += 1
+                return -1
+            if path[0] == "empty":
                 connection.set_latency(-1)
                 connection.set_snr(0.0)
             else:
-                success_count += 1
-                connection.set_bit_rate(bit_rate)
+                success += 1
                 channel = self.get_first_free_channel("->".join(path))
                 test_signal = Lightpath(signal_power_value=connection.get_signal_power(),
-                                        given_path=path.copy(),
+                                        given_path=path,
                                         selected_channel=channel
                                         )
                 self.propagate(test_signal)
-                # switching matrix occupation
-                self.occupy_switching_matrices(path, channel)
+                self.occupy_all_subpaths("->".join(path), channel)
                 connection.set_latency(test_signal.get_latency())
                 connection.set_snr(test_signal.get_snr())
-                print("BR: " + str(bit_rate))
-                self.routing_space_update()
-        print("total connections: " + str(total_count))
-        print("total failures: " + str(fail_count))
-        self.set_capacity(
-            {
-                "total": total_count,
-                "accepted": success_count,
-                "rejected": fail_count
-            }
-        )
-        self.restore_all_matrices()
-
-    def restore_all_matrices(self):
-        for node in self.__nodes.values():
-            node.restore_switching_matrix()
-
-    def occupy_switching_matrices(self, path: list[str], channel: int):
-        if len(path) > 2:
-            for i in range(1, len(path)-1):
-                self.__nodes[path[i]].occupy_switching_matrix(path[i-1], path[i+1], channel)
-
-    def get_all_lines_state(self):
-        message = ""
-        for key, value in self.__lines.items():
-            message += key + ": " + ", ".join([str(v) for v in value.get_state()]) + "\n"
-        return message
+        return float(success)/float(all_connections)
 
     def __to_vectorize(self, path, channel):
         final_value = 1
@@ -277,51 +243,11 @@ class Network:
             self.__route_space["CH_" + str(i)] = pd.Series(v(self.__route_space.Path, i))
         self.route_space_update_any()
 
-    def route_space_update_any(self):
-        ch_columns = [c for c in list(self.__route_space.columns) if c != "CH_ANY" and c != "Path"]
-        self.__route_space["CH_ANY"] = self.__route_space[ch_columns].any(axis=1).astype(int)
-
-    def get_total_free_channels(self):
-        return self.__route_space["CH_CNT"].sum()
-
-    def calculate_bit_rate(self, path: str, strategy: str = "fixed_rate"):
-        # print("path in calcuate br: " + path)
-        try:
-            gsnr = float(self.__weighted_paths.loc[self.__weighted_paths["Path"] == path, "SNR [dB]"])
-        except:
-            return None
-        # print("gsnr: " + str(gsnr))
-        r_s = 32.0      # Rs = symbol rate, fixed to 32 (GHz)
-        b_n = 12.5      # Bn = noise bandwidth, fixed to 12.5 (GHz)
-        ber_t = 1e-3    # BERt = bit error rate, fixed to 10^-3
-
-        if strategy == "fixed_rate":
-            min_gsnr = 10.0*log10(2*(erfcinv(2*ber_t)**2)*r_s/b_n)
-            # print("fixed rate min gsnr: " + str(min_gsnr))
-            if gsnr >= min_gsnr:
-                return 100
-            else:
-                return 0
-        elif strategy == "flex_rate":
-            gsnr_2 = 10.0*log10(2.0*(erfcinv(2.0*ber_t)**2)*r_s/b_n)
-            # print("flex rate min gsnr: " + str(gsnr_2))
-            gsnr_143 = 10.0*log10(14.0/3.0 * (erfcinv(3.0*ber_t/2.0)**2)*r_s/b_n)
-            # print("flex rate min gsnr: " + str(gsnr_143))
-            gsnr_10 = 10.0*log10(10.0 * (erfcinv(8.0*ber_t/3.0)**2)*r_s/b_n)
-            # print("flex rate min gsnr: " + str(gsnr_10))
-            if gsnr < gsnr_2:
-                return 0
-            elif gsnr_2 <= gsnr < gsnr_143:
-                return 100
-            elif gsnr_143 <= gsnr < gsnr_10:
-                return 200
-            else:
-                return 400
-        elif strategy == "shannon":
-            linear_gsnr = 10**(gsnr/10.0)
-            return 2.0*r_s*log2(1 + linear_gsnr*r_s/b_n)
-        else:
-            return 0
+    def route_space_occupation(self):
+        column_list = [x for x in self.__route_space.columns if x != "Path" and x != "CH_ANY"]
+        free_channels = self.__route_space[column_list].sum().sum()
+        all_channels = self.__channels*len(self.__route_space.index)
+        return float(free_channels)/float(all_channels)
 
     # class getters
 
@@ -339,9 +265,6 @@ class Network:
 
     def get_route_space(self) -> pd.DataFrame:
         return self.__route_space
-
-    def get_capacity(self) -> dict:
-        return self.__capacity
 
     # class setters
 
@@ -368,12 +291,6 @@ class Network:
             self.__weighted_paths = pd.DataFrame(new_weighted_paths)
         except ValueError:
             print("The value given to the set_weighted_paths method could not be used to create a dataframe.")
-
-    def set_capacity(self, new_capacity):
-        try:
-            self.__capacity = dict(new_capacity)
-        except ValueError:
-            print("The value given to the get_capacity method was not a valid dictionary.")
 
     # class overloads
 

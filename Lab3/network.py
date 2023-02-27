@@ -126,7 +126,7 @@ class Network:
                     ]
                 )
             paths_for_rs.append(
-                ["->".join(path)] + ["1" for i in range(self.__channels+1)]
+                ["->".join(path)] + ["1" for _ in range(self.__channels+1)]
             )
         self.__weighted_paths = pd.DataFrame(
             paths_for_wp,
@@ -168,7 +168,7 @@ class Network:
             "CH_" + str(channel)
         ] = int(new_state)
 
-    def set_all_paths_state(self, new_state: int, channel: int):
+    def set_all_paths_state(self, new_state: int, channel):
         self.__weighted_paths["CH_" + str(channel)] = new_state
 
     def occupy_lines_from_path(self, path: list[str]):
@@ -178,8 +178,16 @@ class Network:
 
     def occupy_all_subpaths(self, path: str, channel: int):
         self.__route_space.loc[self.__route_space["Path"].str.contains(path), "CH_" + str(channel)] = 0
-        if channel == self.__channels:
-            self.__route_space.loc[self.__route_space["Path"].str.contains(path), "CH_ANY"] = 0
+        self.route_space_update_any()
+        #if channel == self.__channels:
+            #self.__route_space.loc[self.__route_space["Path"].str.contains(path), "CH_ANY"] = 0
+
+    def route_space_update_any(self):
+        ch_columns = [c for c in list(self.__route_space.columns) if c != "CH_ANY" and c != "Path"]
+        self.__route_space["CH_ANY"] = self.__route_space[ch_columns].any(axis=1).astype(int)
+
+    def reset_route_space(self):
+        self.__route_space.replace(to_replace=0, value=1, inplace=True)
 
     def get_first_free_channel(self, path: str) -> int:
         for i in range(1, self.__channels + 1):
@@ -188,6 +196,8 @@ class Network:
         return -1
 
     def stream(self, connection_list: list[Connection], best="latency"):
+        all_connections = len(connection_list)
+        success = 0
         for connection in connection_list:
             if best == "latency":
                 path = self.find_best_latency(connection.get_input(), connection.get_output()).split("->")
@@ -199,6 +209,7 @@ class Network:
                 connection.set_latency(-1)
                 connection.set_snr(0.0)
             else:
+                success += 1
                 channel = self.get_first_free_channel("->".join(path))
                 test_signal = Lightpath(signal_power_value=connection.get_signal_power(),
                                         given_path=path,
@@ -208,6 +219,7 @@ class Network:
                 self.occupy_all_subpaths("->".join(path), channel)
                 connection.set_latency(test_signal.get_latency())
                 connection.set_snr(test_signal.get_snr())
+        return float(success)/float(all_connections)
 
     # class getters
 
@@ -258,10 +270,9 @@ class Network:
         return "Network object"
 
     def __str__(self):
-        message = "Network with " + str(len(self.__nodes)) + " nodes and " + str(len(self.__lines)) + " lines\n"
+        message = f"Network with {len(self.__nodes)} nodes and {len(self.__lines)} lines\n"
         for node in self.__nodes.values():
             message += str(node)
         for line in self.__lines.values():
             message += str(line)
-        message += "\nWeighted paths:\n" + str(self.__weighted_paths)
         return message

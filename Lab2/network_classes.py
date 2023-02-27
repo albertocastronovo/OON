@@ -2,12 +2,11 @@ from json import load
 from math import sqrt, log10
 import matplotlib.pyplot as plt
 import pandas as pd
+from textwrap import dedent
 
 
 #   Signal_information class
-#   latency: total time delay due to the signal propagation
-#       through any network element along the path.
-#
+
 class Signal_information:
     def __init__(self, signal_power_value=1e-3, given_path=None):
         self.__signal_power:   float = signal_power_value
@@ -92,16 +91,18 @@ class Signal_information:
         return "Signal_information object"
 
     def __str__(self):
-        message = "Signal Information:\nSignal power: " + \
-            "%.3f" % self.__signal_power + " W\nNoise power: " + \
-            "%.3f" % self.__noise_power + " W\nLatency: " + \
-            "%.3f" % self.__latency + " s\nPath: " + \
-            ", ".join(self.__path) + "\n"
+        message = dedent(f"""\
+                    Signal Information
+                    Signal power:   {self.__signal_power :.3f} W
+                    Noise power:    {self.__noise_power :.3f} W
+                    Latency:        {self.__latency :.3f} s
+                    Path:           {', '.join(self.__path)}"""
+                         )
         return message
 
 
 # Node class
-#
+
 class Node:
     def __init__(self, node_dictionary=None):
         try:
@@ -121,7 +122,6 @@ class Node:
     def propagate(self, signal: Signal_information):
         # update signal path
         signal_path = signal.get_path()
-        print(signal_path)
         if len(signal_path) > 1:
             successive_line = self.__label + signal_path[1]
             signal.update_path(self.__label)
@@ -175,16 +175,17 @@ class Node:
         return "Node object"
 
     def __str__(self):
-        message = "Node with label: " + self.__label + "\nPosition: (" + \
-            "%.3f" % self.__position[0] + ", " + "%.3f" % self.__position[1] + ")\nConnected nodes: " + \
-            ", ".join(self.__connected_nodes) + "\n"
-        if self.__successive:
-            successive_labels = self.__successive.keys()
-            message += "Successive lines: " + ", ".join(successive_labels) + "\n"
+        message = dedent(f"""\
+                            Node with label:    {self.__label}
+                            Position:           {" m, ".join(map(str, self.__position))} m
+                            Connected nodes:    {", ".join(self.__connected_nodes)}
+                            Successive:         {", ".join(self.__successive.keys())}"""
+                         )
         return message
 
 
 # Line class
+
 class Line:
     def __init__(self, label: str = "default", length: float = 0.0):
         self.__label: str = label
@@ -247,13 +248,15 @@ class Line:
         return "Line object"
 
     def __str__(self):
-        successive_nodes = self.__successive.keys()
-        message = "Line with label: " + self.__label + "\nLength: " + \
-            "%.3f" % self.__length + " m\n"
-        if self.__successive:
-            message += "Successive nodes: " + ", ".join(successive_nodes) + "\n"
+        message = dedent(f"""\
+                        Line with label:    {self.__label}
+                        Length:             {self.__length :.3f} m
+                        Successive:         {", ".join(self.__successive.keys())}"""
+                         )
         return message
 
+
+#   4.  Connection class
 
 class Connection:
     def __init__(self, inout: list[str, str], signal_power=1e-3):
@@ -320,11 +323,16 @@ class Connection:
         return "Connection object"
 
     def __str__(self):
-        message = "Connection between: " + self.__input + " -> " + self.__output + \
-                    "\nSignal power: " + "%.3f" % self.__signal_power + " W\n" + \
-                    "Latency: " + "%.3f" % self.__latency + " s\nSNR: " + "%.3f" % self.__snr + " dB\n"
+        message = dedent(f"""\
+                        Connection between: {self.__input} -> {self.__output}
+                        Signal power:       {self.__signal_power :.3f} W
+                        Latency:            {self.__latency :.3f} s
+                        SNR:                {self.__snr :.3f} dB"""
+                         )
         return message
 
+
+# Network class
 
 class Network:
     def __init__(self, file_path: str = None):
@@ -334,7 +342,7 @@ class Network:
         else:
             self.__nodes, self.__lines = self.parse_json_to_elements(file_path)
         self.__all_paths: list[list[str]] = []
-        self.__weighted_paths: pd.DataFrame = pd.DataFrame()
+        self.__weighted_paths: pd.DataFrame = pd.DataFrame()    # 1. Dataframe set as an attribute
 
     @staticmethod
     def parse_json_to_elements(json_path: str) -> tuple[dict[str: Node], dict[str: Line]]:
@@ -432,35 +440,40 @@ class Network:
             columns=["Path", "Latency [s]", "Noise Power [W]", "SNR [dB]"]
         )
 
-    def find_best_snr(self, input_node: str, output_node: str) -> str:
-        paths_subset = self.__weighted_paths[
+    def find_best_snr(self, input_node: str, output_node: str) -> str:      # 2. find_best_snr method
+        paths_subset = self.__weighted_paths[                               # all the possible paths are selected
             (self.__weighted_paths["Path"].str.startswith(input_node)) &
             (self.__weighted_paths["Path"].str.endswith(output_node))
-        ]
-        max_index = paths_subset["SNR [dB]"].idxmax(axis=0)
+        ]                                                                   # in this subset of paths,
+        max_index = paths_subset["SNR [dB]"].idxmax(axis=0)                 # find the index of the path with max SNR
         return str(self.__weighted_paths.iloc[max_index]["Path"])
 
-    def find_best_latency(self, input_node: str, output_node: str) -> str:
-        paths_subset = self.__weighted_paths[
+    def find_best_latency(self, input_node: str, output_node: str) -> str:  # 3. find_best_latency method
+        paths_subset = self.__weighted_paths[                               # all the possible paths are selected
             (self.__weighted_paths["Path"].str.startswith(input_node)) &
             (self.__weighted_paths["Path"].str.endswith(output_node))
-        ]
-        min_index = paths_subset["Latency [s]"].idxmin(axis=0)
+        ]                                                                   # in this subset of paths,
+        min_index = paths_subset["Latency [s]"].idxmin(axis=0)              # find the index of the path with min lat
         return str(self.__weighted_paths.iloc[min_index]["Path"])
 
-    def stream(self, connection_list: list[Connection], best="latency"):
-        for connection in connection_list:
-            if best == "latency":
+#   5.  Stream method, returns % of connections successfully streamed
+
+    def stream(self, connection_list: list[Connection], best="latency") -> float:
+        all_connections = len(connection_list)
+        success = 0
+        for connection in connection_list:      # the function looks for the best path for each connection,
+            if best == "latency":               # according to user preference (latency or SNR)
                 path = self.find_best_latency(connection.get_input(), connection.get_output()).split("->")
             elif best == "snr":
                 path = self.find_best_snr(connection.get_input(), connection.get_output()).split("->")
             else:
-                return
+                return -1                   # if the selection is invalid, the function ends
+            success += 1
             test_signal = Signal_information(signal_power_value=connection.get_signal_power(), given_path=path)
             self.propagate(test_signal)
             connection.set_latency(test_signal.get_latency())
             connection.set_snr(test_signal.get_snr())
-
+        return float(success)/float(all_connections)
     # class getters
 
     def get_nodes(self) -> dict[str: Node]:
@@ -507,10 +520,9 @@ class Network:
         return "Network object"
 
     def __str__(self):
-        message = "Network with " + str(len(self.__nodes)) + " nodes and " + str(len(self.__lines)) + " lines\n"
+        message = f"Network with {len(self.__nodes)} nodes and {len(self.__lines)} lines\n"
         for node in self.__nodes.values():
             message += str(node)
         for line in self.__lines.values():
             message += str(line)
-        message += "\nWeighted paths:\n" + str(self.__weighted_paths)
         return message

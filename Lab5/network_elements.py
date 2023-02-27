@@ -1,5 +1,6 @@
 from math import log10
 from copy import deepcopy
+from textwrap import dedent
 
 
 class Signal_information:
@@ -86,11 +87,13 @@ class Signal_information:
         return "Signal_information object"
 
     def __str__(self):
-        message = "Signal Information:\nSignal power: " + \
-            "%.3f" % self.__signal_power + " W\nNoise power: " + \
-            "%.3f" % self.__noise_power + " W\nLatency: " + \
-            "%.3f" % self.__latency + " s\nPath: " + \
-            ", ".join(self.__path) + "\n"
+        message = dedent(f"""\
+                        Signal Information
+                        Signal power:   {self.__signal_power :.3f} W
+                        Noise power:    {self.__noise_power :.3f} W
+                        Latency:        {self.__latency :.3f} s
+                        Path:           {', '.join(self.__path)}"""
+                         )
         return message
 
 
@@ -123,12 +126,12 @@ class Lightpath(Signal_information):
 
     def __str__(self):
         message = super(Lightpath, self).__str__()
-        message += "Channel: " + str(self.__channel) + "\nGSNR: " + "%.3f" % self.__gsnr + "\n"
+        message += f"Channel: {self.__channel}"
         return message
 
 
 # Node class
-#
+
 class Node:
     def __init__(self, node_dictionary=None):
         try:
@@ -245,13 +248,12 @@ class Node:
         return "Node object"
 
     def __str__(self):
-        message = "Node with label: " + self.__label + "\nPosition: (" + \
-            "%.3f" % self.__position[0] + ", " + "%.3f" % self.__position[1] + ")\nConnected nodes: " + \
-            ", ".join(self.__connected_nodes) + "\n"
-        if self.__successive:
-            successive_labels = self.__successive.keys()
-            message += "Successive lines: " + ", ".join(successive_labels) + "\nSwitching matrix: " + \
-                str(self.__switching_matrix) + "\n"
+        message = dedent(f"""\
+                        Node with label:    {self.__label}
+                        Position:           {" m, ".join(map(str, self.__position))} m
+                        Connected nodes:    {", ".join(self.__connected_nodes)}
+                        Successive:         {", ".join(self.__successive.keys())}"""
+                         )
         return message
 
 
@@ -338,11 +340,11 @@ class Line:
         return "Line object"
 
     def __str__(self):
-        successive_nodes = self.__successive.keys()
-        message = "Line with label: " + self.__label + "\nLength: " + \
-            "%.3f" % self.__length + " m\nState: " + ", ".join([str(i) for i in self.__state]) + "\n"
-        if self.__successive:
-            message += "Successive nodes: " + ", ".join(successive_nodes) + "\n"
+        message = dedent(f"""\
+                        Line with label:    {self.__label}
+                        Length:             {self.__length :.3f} m
+                        Successive:         {", ".join(self.__successive.keys())}"""
+                         )
         return message
 
 
@@ -424,7 +426,14 @@ class Connection:
         return "Connection object"
 
     def __str__(self):
-        message = "Connection between: " + self.__input + " -> " + self.__output + \
-                    "\nSignal power: " + "%.3f" % self.__signal_power + " W\n" + \
-                    "Latency: " + "%.3f" % self.__latency + " s\nSNR: " + "%.3f" % self.__snr + " dB\n"
+        if self.__latency is None:
+            lat = "None"
+        else:
+            lat = ".3f".format(self.__latency)
+        message = dedent(f"""\
+                        Connection between: {self.__input} -> {self.__output}
+                        Signal power:       {self.__signal_power :.3f} W
+                        Latency:            {lat} s
+                        SNR:                {self.__snr :.3f} dB"""
+                         )
         return message
