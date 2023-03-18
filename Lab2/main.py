@@ -9,7 +9,7 @@ possible_nodes = ["A", "B", "C", "D", "E", "F", "G"]
 
 
 def main():
-    seed(23022023)
+    seed(22032023)
 
     n1 = nc.Network("network.json")
     n2 = ncm.Network("network.json")

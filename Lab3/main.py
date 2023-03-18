@@ -8,7 +8,7 @@ possible_nodes = ["A", "B", "C", "D", "E", "F", "G"]
 
 
 def main():
-    seed(23022023)
+    seed(22032023)
 
     connections_list_latency = [nc.Connection(sample(possible_nodes, 2), 1e-3) for _ in range(100)]
     connections_list_snr = deepcopy(connections_list_latency)
