@@ -3,6 +3,7 @@ from math import sqrt, log10
 import pandas as pd
 import matplotlib.pyplot as plt
 from network_elements import Node, Line, Connection, Lightpath
+import numpy as np
 
 
 class Network:
@@ -38,7 +39,7 @@ class Network:
 
     @staticmethod
     def lines_in_path(path: list[str]):
-        return [path[i] + path[i+1] for i in range(len(path)-1)]
+        return [f"{path[i]}{path[i+1]}" for i in range(len(path)-1)]
 
     # class methods
 
@@ -179,8 +180,21 @@ class Network:
     def occupy_all_subpaths(self, path: str, channel: int):
         self.__route_space.loc[self.__route_space["Path"].str.contains(path), "CH_" + str(channel)] = 0
         self.route_space_update_any()
-        #if channel == self.__channels:
-            #self.__route_space.loc[self.__route_space["Path"].str.contains(path), "CH_ANY"] = 0
+
+    def __to_vectorize(self, path, channel):
+        final_value = 1
+        path_list = path.split("->")
+        lines = self.lines_in_path(path_list)
+        for line in lines:
+            final_value *= self.__lines[line].get_channel_state(channel)
+
+        return final_value
+
+    def routing_space_update(self):
+        v = np.vectorize(self.__to_vectorize)
+        for i in range(1, self.__channels + 1):
+            self.__route_space["CH_" + str(i)] = pd.Series(v(self.__route_space.Path, i))
+        self.route_space_update_any()
 
     def route_space_update_any(self):
         ch_columns = [c for c in list(self.__route_space.columns) if c != "CH_ANY" and c != "Path"]
@@ -188,6 +202,11 @@ class Network:
 
     def reset_route_space(self):
         self.__route_space.replace(to_replace=0, value=1, inplace=True)
+
+    def reset_lines(self):
+        for line in self.__lines.values():
+            line.set_state([1 for _ in range(self.__channels)])
+        self.routing_space_update()
 
     def get_first_free_channel(self, path: str) -> int:
         for i in range(1, self.__channels + 1):
@@ -216,7 +235,8 @@ class Network:
                                         selected_channel=channel
                                         )
                 self.propagate(test_signal)
-                self.occupy_all_subpaths("->".join(path), channel)
+                # self.occupy_all_subpaths("->".join(path), channel)
+                self.routing_space_update()
                 connection.set_latency(test_signal.get_latency())
                 connection.set_snr(test_signal.get_snr())
         return float(success)/float(all_connections)

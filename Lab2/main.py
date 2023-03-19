@@ -18,16 +18,17 @@ def main():
     n1.network_analysis()
     n2.network_analysis()
 
-    n1_con_lat = [nc.Connection(sample(possible_nodes, 2), 1e-3) for _ in range(100)]
 
+    n1_con_lat = [nc.Connection(sample(possible_nodes, 2), 1e-3) for _ in range(100)]
     n1_con_snr = deepcopy(n1_con_lat)
     n2_con_lat = deepcopy(n1_con_lat)
     n2_con_snr = deepcopy(n1_con_lat)
+    n1.draw()
 
     c1l = n1.stream(n1_con_lat, best="latency")
     c1s = n1.stream(n1_con_snr, best="snr")
     c2l = n2.stream(n2_con_lat, best="latency")
-    n2.set_all_paths_state(1)
+    n2.reset_lines()
     c2s = n2.stream(n2_con_snr, best="snr")
 
     n1_lat = [c.get_latency()*1000 for c in n1_con_lat]
@@ -56,7 +57,7 @@ def main():
 
     plt.hist(
         n1_snr,
-        bins=arange(min(n2_snr), max(n1_snr) + 0.05, 0.05),
+        bins=arange(min(n2_snr), max(n1_snr) + 0.1, 0.1),
         label=f"Network 1, {c1s * 100}%"
     )
     plt.title(f"Distribution of SNR")
@@ -64,7 +65,7 @@ def main():
     plt.ylabel("Number of paths")
     plt.hist(
         n2_snr,
-        bins=arange(min(n2_snr), max(n1_snr) + 0.05, 0.05),
+        bins=arange(min(n2_snr), max(n1_snr) + 0.1, 0.1),
         color="r",
         label=f"Network 2, {c2s * 100}%"
     )

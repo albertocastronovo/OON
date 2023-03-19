@@ -12,11 +12,13 @@ def main():
 
     connections_list_latency = [nc.Connection(sample(possible_nodes, 2), 1e-3) for _ in range(100)]
     connections_list_snr = deepcopy(connections_list_latency)
-    network = nc.Network("network.json", 10)
+    network = nc.Network("network.json", 6)
     network.connect()
     network.network_analysis()
+    print(network.get_route_space())
     cl = network.stream(connections_list_latency, best="latency")
     network.reset_route_space()
+    network.reset_lines()
     cs = network.stream(connections_list_snr, best="snr")
 
     lat = [c.get_latency() for c in connections_list_latency]
@@ -36,7 +38,7 @@ def main():
 
     plt.hist(
         snr,
-        bins=arange(min(snr), max(snr) + 0.05, 0.05)
+        bins=arange(min(snr), max(snr) + 0.1, 0.1)
     )
     plt.title(f"SNR distribution, success = {cs*100:.1f}%")
     plt.xlabel("SNR [dB]")

@@ -75,10 +75,10 @@ def main():
 
     #   plot of snr for static matrix networks
 
-    bins_range = arange(0, 42.25, 0.25)
+    bins_range = arange(20, 42.25, 0.25)
     plt.hist(x=snr1f, alpha=0.5, bins=bins_range, color="red", label=f"full, {n1f.get_route_space_occupancy()*100.0:.3f}% free")
     plt.hist(x=snr1n, alpha=0.5, bins=bins_range, color="blue", label=f"not full, {n1n.get_route_space_occupancy()*100.0:.3f}% free")
-    plt.title(f"Static switching matrix, average {mean(snr1f):.2f} dB")
+    plt.title(f"Static switching matrix, average {mean(snr1f):.2f} dB, {100*(1-c1f):.1f}% rejected")
     plt.xlabel("SNR [dB]")
     plt.ylabel("# of connections")
     plt.legend(loc="upper left")
@@ -88,7 +88,7 @@ def main():
 
     plt.hist(x=snr3f, alpha=0.5, bins=bins_range, color="red", label=f"full, {n3f.get_route_space_occupancy()*100.0:.3f}% free")
     plt.hist(x=snr3n, alpha=0.5, bins=bins_range, color="blue", label=f"not full, {n3n.get_route_space_occupancy()*100.0:.3f}% free")
-    plt.title(f"Dynamic switching matrix, average {mean(snr3f):.2f} dB")
+    plt.title(f"Dynamic switching matrix, average {mean(snr3f):.2f} dB, {100*(1-c3f['allocated']):.1f}% rejected")
     plt.xlabel("SNR [dB]")
     plt.ylabel("# of connections")
     plt.legend(loc="upper left")
@@ -111,12 +111,17 @@ def main():
 
     bins_br = arange(0, max(brsh) + 20, 5)
     plt.yscale("log")
+
+    brfi_nz = [x for x in brfi if x != 0]
+    brfl_nz = [x for x in brfl if x != 0]
+    brsh_nz = [x for x in brsh if x != 0]
+
     plt.hist(x=brfi, alpha=0.33, bins=bins_br, color="red",
-             label=f"fixed, tot {sum(brfi):.0f} ({ctfi.get('allocated')*100.0:.0f} allocated), avg {mean(brfi):.1f}")
+             label=f"fixed, tot {sum(brfi):.0f} ({ctfi.get('allocated')*100.0:.0f} allocated), avg {mean(brfi_nz):.1f}")
     plt.hist(x=brfl, alpha=0.33, bins=bins_br, color="blue",
-             label=f"flex, tot {sum(brfl):.0f} ({ctfl.get('allocated')*100.0:.0f} allocated), avg {mean(brfl):.1f}")
+             label=f"flex, tot {sum(brfl):.0f} ({ctfl.get('allocated')*100.0:.0f} allocated), avg {mean(brfl_nz):.1f}")
     plt.hist(x=brsh, alpha=0.33, bins=bins_br, color="green",
-             label=f"shannon, tot {sum(brsh):.1f} ({ctsh.get('allocated')*100.0:.0f} allocated), avg {mean(brsh):.1f}")
+             label=f"shannon, tot {sum(brsh):.1f} ({ctsh.get('allocated')*100.0:.0f} allocated), avg {mean(brsh_nz):.1f}")
     plt.title(f"Bit rates of connections with different transceivers")
     plt.xlabel("Bit rate [GBit/s]")
     plt.ylabel("# of connections")
@@ -135,6 +140,7 @@ def main():
     plt.title(f"Dynamic SM with different transceivers")
     plt.xlabel("SNR [dB]")
     plt.ylabel("# of connections")
+    plt.xlim([20, 42.25])
     plt.legend(loc="upper left")
     plt.show()
 

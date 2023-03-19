@@ -43,7 +43,7 @@ def main():
     br_fl = [c.get_bit_rate() for c in con_fl]
     br_sh = [c.get_bit_rate() for c in con_sh]
 
-    bins_range = arange(0, 42.25, 0.25)
+    bins_range = arange(20, 42.25, 0.25)
 
     plt.hist(x=snr_fi, alpha=0.33, bins=bins_range, color="red",
              label=f"fixed, {n_fi.get_route_space_occupancy() * 100.0:.3f}% free")
@@ -54,17 +54,23 @@ def main():
     plt.title(f"Dynamic SM with different transceivers")
     plt.xlabel("SNR [dB]")
     plt.ylabel("# of connections")
-    plt.legend(loc="upper left")
+    plt.xlim([20, 42.25])
+    plt.legend(loc="upper right")
     plt.show()
 
     bins_br = arange(0, max(br_sh) + 20, 5)
+
+    br_fi_nz = [x for x in br_fi if x != 0]
+    br_fl_nz = [x for x in br_fl if x != 0]
+    br_sh_nz = [x for x in br_sh if x != 0]
+
     plt.yscale("log")
     plt.hist(x=br_fi, alpha=0.33, bins=bins_br, color="red",
-             label=f"fixed, tot {sum(br_fi):.0f} ({ct_fi.get('allocated') * 100.0:.0f} allocated), avg {mean(br_fi):.1f}")
+             label=f"fixed, tot {sum(br_fi):.0f} ({ct_fi.get('allocated') * 100.0:.0f} allocated), avg {mean(br_fi_nz):.1f}")
     plt.hist(x=br_fl, alpha=0.33, bins=bins_br, color="blue",
-             label=f"flex, tot {sum(br_fl):.0f} ({ct_fl.get('allocated') * 100.0:.0f} allocated), avg {mean(br_fl):.1f}")
+             label=f"flex, tot {sum(br_fl):.0f} ({ct_fl.get('allocated') * 100.0:.0f} allocated), avg {mean(br_fl_nz):.1f}")
     plt.hist(x=br_sh, alpha=0.33, bins=bins_br, color="green",
-             label=f"shannon, tot {sum(br_sh):.1f} ({ct_sh.get('allocated') * 100.0:.0f} allocated), avg {mean(br_sh):.1f}")
+             label=f"shannon, tot {sum(br_sh):.1f} ({ct_sh.get('allocated') * 100.0:.0f} allocated), avg {mean(br_sh_nz):.1f}")
     plt.title(f"Bit rates of connections with different transceivers")
     plt.xlabel("Bit rate [GBit/s]")
     plt.ylabel("# of connections")
@@ -85,10 +91,13 @@ def main():
     ntm_sh.network_analysis()
     ntm_sh.routing_space_update()
 
-    m_range = range(1, 11)
+    m_range = range(1, 16)
     fi_valid_cons = []
     fl_valid_cons = []
     sh_valid_cons = []
+    fi_rejected_cons = []
+    fl_rejected_cons = []
+    sh_rejected_cons = []
     fi_snr = []
     fl_snr = []
     sh_snr = []
@@ -162,11 +171,14 @@ def main():
             else:
                 excess_cons["sh"] += 1
 
-        fi_valid_cons.append(float(valid_cons["fi"])/(m*42 - excess_cons["fi"]))
-        fl_valid_cons.append(float(valid_cons["fl"])/(m*42 - excess_cons["fl"]))
-        sh_valid_cons.append(float(valid_cons["sh"])/(m*42 - excess_cons["sh"]))
+        fi_valid_cons.append(valid_cons["fi"])
+        fl_valid_cons.append(valid_cons["fl"])
+        sh_valid_cons.append(valid_cons["sh"])
+        fi_rejected_cons.append(refused_cons["fi"])
+        fl_rejected_cons.append(refused_cons["fl"])
+        sh_rejected_cons.append(refused_cons["sh"])
 
-        fi_snr.append(float(snr_sum["fi"])/valid_cons["fi"])
+        fi_snr.append(float(snr_sum["fi"]) / valid_cons["fi"])
         fl_snr.append(float(snr_sum["fl"]) / valid_cons["fl"])
         sh_snr.append(float(snr_sum["sh"]) / valid_cons["sh"])
 
@@ -178,32 +190,46 @@ def main():
         fl_congestion.append(ntm_fl.get_route_space_occupancy())
         sh_congestion.append(ntm_sh.get_route_space_occupancy())
 
-    plt.plot(list(m_range), fi_valid_cons, alpha=0.33, color="red", label="fixed")
-    plt.plot(list(m_range), sh_valid_cons, alpha=0.33, color="green", label="flex")
-    plt.plot(list(m_range), fl_valid_cons, alpha=0.33, color="blue", label="shannon")
-    plt.legend(loc="upper right")
+    plt.plot(list(m_range), fi_valid_cons, alpha=0.9, color="red", label="allocated, fixed")
+    plt.plot(list(m_range), fl_valid_cons, alpha=0.9, color="green", label="allocated, flex")
+    plt.plot(list(m_range), sh_valid_cons, alpha=0.9, color="blue", label="allocated, shannon")
+    plt.plot(list(m_range), fi_rejected_cons, alpha=0.33, color="red", label="rejected, fixed")
+    plt.plot(list(m_range), fl_rejected_cons, alpha=0.33, color="green", label="rejected, flex")
+    plt.plot(list(m_range), sh_rejected_cons, alpha=0.33, color="blue", label="rejected, shannon")
+    plt.legend(loc="upper left")
     plt.title("valid connections vs transceiver and matrix")
+    plt.xlabel("Order of traffic matrix, M")
+    plt.ylabel("# of connections")
     plt.show()
 
     plt.plot(list(m_range), fi_snr, alpha=0.33, color="red",  label="fixed")
     plt.plot(list(m_range), fl_snr, alpha=0.33, color="green", label="flex")
     plt.plot(list(m_range), sh_snr, alpha=0.33, color="blue", label="shannon")
-    plt.legend(loc="upper right")
-    plt.title("average SNR vs transceiver and matrix")
+    plt.legend(loc="lower left")
+    plt.title("average GSNR vs transceiver and matrix")
+    plt.xlabel("Order of traffic matrix, M")
+    plt.ylabel("GSNR [dB]")
     plt.show()
+
+    requested_capacity = [m*100*42 for m in m_range]
 
     plt.plot(list(m_range), fi_cap, alpha=0.33, color="red",  label="fixed")
     plt.plot(list(m_range), fl_cap, alpha=0.33, color="green", label="flex")
     plt.plot(list(m_range), sh_cap, alpha=0.33, color="blue", label="shannon")
-    plt.legend(loc="upper right")
+    plt.plot(list(m_range), requested_capacity, alpha = 0.3, color="black", label="requested")
+    plt.legend(loc="upper left")
     plt.title("total capacity vs transceiver and matrix")
+    plt.xlabel("Order of traffic matrix, M")
+    plt.ylabel("Capacity [Gbps]")
     plt.show()
 
-    plt.plot(list(m_range), fi_congestion, alpha=0.33, color="red",  label="fixed")
-    plt.plot(list(m_range), fl_congestion, alpha=0.33, color="green", label="flex")
-    plt.plot(list(m_range), sh_congestion, alpha=0.33, color="blue", label="shannon")
-    plt.legend(loc="upper right")
-    plt.title("busy network % vs transceiver and matrix")
+    plt.plot(list(m_range), [(1-x)*100 for x in fi_congestion], alpha=0.33, color="red",  label="fixed")
+    plt.plot(list(m_range), [(1-x)*100 for x in fl_congestion], alpha=0.33, color="green", label="flex")
+    plt.plot(list(m_range), [(1-x)*100 for x in sh_congestion], alpha=0.33, color="blue", label="shannon")
+    plt.legend(loc="lower right")
+    plt.title("Spectral occupancy vs transceiver and matrix")
+    plt.xlabel("Order of traffic matrix, M")
+    plt.ylabel("Unavailable paths [%]")
     plt.show()
 
 

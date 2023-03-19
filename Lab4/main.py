@@ -12,6 +12,5 @@ def main():
     print(network.get_route_space())
 
 
-
 if __name__ == "__main__":
     main()

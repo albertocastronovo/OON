@@ -25,7 +25,7 @@ def main():
     print(f"Avg SNR: {mean(snrs):.2f} dB")
 
     lats = df["Latency [s]"]*1e03
-    print(lats)
+    # print(lats)
     plt.hist(
         lats,
         bins=arange(min(lats), max(lats) + 0.05, 0.05)
@@ -37,6 +37,8 @@ def main():
     print(f"Max latency: {max(lats):.2f} ms")
     print(f"Min latency: {min(lats):.2f} ms")
     print(f"Avg latency: {mean(lats):.2f} ms")
+
+    print(network.get_dataframe())
 
 
 if __name__ == "__main__":

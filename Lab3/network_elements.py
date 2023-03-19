@@ -264,6 +264,9 @@ class Line:
     def get_state(self) -> list[int]:
         return self.__state
 
+    def get_channel_state(self, channel: int) -> int:
+        return self.__state[channel-1]
+
     # class setters
 
     def set_label(self, new_label):

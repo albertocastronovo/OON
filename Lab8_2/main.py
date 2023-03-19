@@ -137,7 +137,7 @@ def monte_carlo_congestion():
     plt.plot(list(m_range), block_count, alpha=1.0, color="green", label="Blocked")
     plt.plot(list(m_range), accepted_reqs, alpha=1.0, color="blue", label="Accepted")
     plt.plot(list(m_range), attempted_connections, alpha=1.0, color="black", label="Total")
-    plt.title("Total cout of accepted and blocked connections vs. traffic matrix size")
+    plt.title("Total count of accepted and blocked connections vs. traffic matrix size")
     plt.ylabel("# of connections")
     plt.xlabel("Order of traffic matrix, M")
     plt.legend(loc="upper left")
@@ -269,5 +269,5 @@ def monte_carlo_single_tm(
 if __name__ == "__main__":
     start_time = time.time()
     # monte_carlo_congestion()
-    monte_carlo_single_tm(m=10, strategy="shannon")
+    monte_carlo_single_tm(m=9, strategy="flex")
     print(f"Execution time: {time.time() - start_time:.2f} seconds")

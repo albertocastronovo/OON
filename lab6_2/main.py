@@ -26,12 +26,12 @@ def main():
         nli_noise = ex_line.nli_generation(test_signal)
         hist_old.append(10*log10(1e-3 / old_noise))
         hist_new.append(10*log10(1e-3 / (ase_noise + nli_noise)))
-    plt.title("SNR vs line length, 6 channels, 1 km to 1000 km")
+    plt.title("SNR vs line length, 6 channels, 1 mW, 1 km to 1000 km")
     plt.plot(lengths, hist_new, alpha=0.5, label="ASE + NLI")
     plt.plot(lengths, hist_old, alpha=0.5, label="old formula")
     plt.legend(loc="upper right")
     plt.xlabel("Line length [m]")
-    plt.ylabel("SNR")
+    plt.ylabel("SNR [dB]")
     plt.show()
 
     hist2_new = []
@@ -48,12 +48,12 @@ def main():
         hist2_old.append(10 * log10(pow / old_noise))
         hist2_new.append(10 * log10(pow / (ase_noise + nli_noise)))
 
-    plt.title("SNR vs input power, 6 channels, 1 uW to 1 W")
+    plt.title("SNR vs input power, 6 channels, 100 km, 1 uW to 1 W")
     plt.plot(in_power, hist2_new, alpha=0.5, label="ASE + NLI")
     plt.plot(in_power, hist2_old, alpha=0.5, label="old formula")
     plt.legend(loc="lower left")
     plt.xlabel("Signal power [W]")
-    plt.ylabel("SNR")
+    plt.ylabel("SNR [dB]")
     plt.xscale("log")
     plt.show()
 

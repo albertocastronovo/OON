@@ -3,6 +3,7 @@ from math import sqrt, log10
 import matplotlib.pyplot as plt
 import pandas as pd
 from textwrap import dedent
+import numpy as np
 
 
 #   Signal_information class
@@ -373,7 +374,7 @@ class Network:
 
     @staticmethod
     def lines_in_path(path: list[str]):
-        return [path[i] + path[i+1] for i in range(len(path)-1)]
+        return [f"{path[i]}{path[i+1]}" for i in range(len(path)-1)]
 
     # class methods
 
@@ -466,6 +467,7 @@ class Network:
             (self.__weighted_paths["Path"].str.endswith(output_node)) &
             (self.__weighted_paths["Free"] == 1)
         ]
+        # print(paths_subset)
         if paths_subset.empty:
             return "empty"
         max_index = paths_subset["SNR [dB]"].idxmax(axis=0)
@@ -494,31 +496,59 @@ class Network:
 
     def occupy_lines_from_path(self, path: list[str]):
         lines = self.lines_in_path(path)
+        print(lines)
         for line in lines:
             self.__lines[line].set_state(0)
+        print([x.get_state() for x in self.__lines.values()])
 
     def occupy_all_subpaths(self, path: str):
         self.__weighted_paths.loc[self.__weighted_paths["Path"].str.contains(path), "Free"] = 0
 
+    def get_state_from_lines(self, path: str):
+        lines = self.lines_in_path(path.split("->"))
+        final_state = 1
+        for line in lines:
+            final_state *= self.__lines[line].get_state()
+        return final_state
+
+    def weighted_paths_update(self):
+        v = np.vectorize(self.get_state_from_lines)
+        self.__weighted_paths["Free"] = pd.Series(v(self.__weighted_paths.Path))
+
+    def reset_lines(self):
+        for line in self.__lines.values():
+            line.set_state(1)
+        self.weighted_paths_update()
+
     def stream(self, connection_list: list[Connection], best="latency") -> float:
         all_connections = len(connection_list)
         success = 0
+        connection_number = 0
         for connection in connection_list:
+            connection_number += 1
+            if connection_number == 1:
+                print(f"from node {connection.get_input()} to node {connection.get_output()}")
+            if connection_number == 2:
+                print(self.get_weighted_paths().to_string())
+            # print(f"{connection.get_input()} to {connection.get_output()}")
             if best == "latency":
                 path = self.find_best_latency(connection.get_input(), connection.get_output()).split("->")
             elif best == "snr":
                 path = self.find_best_snr(connection.get_input(), connection.get_output()).split("->")
             else:
                 return -1
+            # print(path)
             if path[0] == "empty":
                 connection.set_latency(-1)
                 connection.set_snr(0.0)
             else:
                 success += 1
                 test_signal = Signal_information(signal_power_value=connection.get_signal_power(), given_path=path)
+                old_path = path.copy()
                 self.propagate(test_signal)
-                self.occupy_all_subpaths("->".join(path))
-                self.occupy_lines_from_path(path)
+                # self.occupy_all_subpaths("->".join(path))
+                self.occupy_lines_from_path(old_path)
+                self.weighted_paths_update()
                 connection.set_latency(test_signal.get_latency())
                 connection.set_snr(test_signal.get_snr())
         return float(success) / float(all_connections)
