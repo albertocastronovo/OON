@@ -16,11 +16,13 @@ from textwrap import dedent
 #           of a suitable path or due to not meeting the GSNR requirements for the minimum com. speed)
 
 
-def monte_carlo_congestion():
+def monte_carlo_congestion(max_m: int = 15,
+                           strategy: str = "flex",
+                           channels: int = 6
+                           ):
     #   provides the evolution of the metrics given the increment of M
     seed(22032023)
-    n_channels = 6
-    network = Network("network/not_full_network_flex.json", n_channels)
+    network = Network(f"network/not_full_network_{strategy}.json", channels)
     network.connect()
     network.network_analysis()
     network.routing_space_update()
@@ -38,7 +40,7 @@ def monte_carlo_congestion():
     requested_capacity = []
     attempted_connections = []
 
-    m_range = range(1, 16)
+    m_range = range(1, max_m + 1)
 
     for m in m_range:
         print(f"processing m = {m}")
@@ -56,7 +58,7 @@ def monte_carlo_congestion():
         }
 
         m_total_capacity = 0
-        m_requested_capacity = m*100*(len(possible_nodes)**2)
+        m_requested_capacity = m*100*((len(possible_nodes)-1)**2)
         m_per_link_gsnr = 0
         m_min_capacity = 1000
         m_max_capacity = 0
@@ -64,7 +66,7 @@ def monte_carlo_congestion():
         m_max_gsnr = 0
         m_block_count = 0
         m_accepted_reqs = 0
-        m_attempted_connections = m*n_channels*len(possible_nodes)
+        m_attempted_connections = m*channels*len(possible_nodes)
 
         for i in range(m_attempted_connections):
             return_value, streamed_con = network.stream_random_from_tm(traffic_matrix)
@@ -268,6 +270,6 @@ def monte_carlo_single_tm(
 
 if __name__ == "__main__":
     start_time = time.time()
-    # monte_carlo_congestion()
-    monte_carlo_single_tm(m=9, strategy="flex")
+    monte_carlo_congestion(max_m=15)
+    # monte_carlo_single_tm(m=9, strategy="flex")
     print(f"Execution time: {time.time() - start_time:.2f} seconds")
